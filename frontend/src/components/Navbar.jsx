@@ -12,6 +12,7 @@ import {
   Key,
   Sun,
   Moon,
+  User,
 } from "lucide-react";
 
 export const Navbar = ({
@@ -24,6 +25,15 @@ export const Navbar = ({
 }) => {
   const { user, logout, isAuthenticated, isAdmin } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
+  const getInitials = (name) => {
+    if (!name) return "U";
+    const parts = name.trim().split(" ");
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.substring(0, 2).toUpperCase();
+  };
 
   return (
     <header
@@ -149,26 +159,49 @@ export const Navbar = ({
           </button>
 
           {isAuthenticated && (
-            <button
-              onClick={() => setActiveTab("my_orders")}
-              style={{
-                padding: "8px 14px",
-                borderRadius: "8px",
-                border: "none",
-                background:
-                  activeTab === "my_orders" ? "var(--accent-primary)" : "transparent",
-                color: activeTab === "my_orders" ? "#ffffff" : "var(--text-secondary)",
-                fontWeight: activeTab === "my_orders" ? "700" : "500",
-                fontSize: "14px",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                transition: "var(--theme-transition)",
-              }}
-            >
-              My Orders
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab("my_orders")}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background:
+                    activeTab === "my_orders" ? "var(--accent-primary)" : "transparent",
+                  color: activeTab === "my_orders" ? "#ffffff" : "var(--text-secondary)",
+                  fontWeight: activeTab === "my_orders" ? "700" : "500",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "var(--theme-transition)",
+                }}
+              >
+                My Orders
+              </button>
+
+              <button
+                onClick={() => setActiveTab("profile")}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background:
+                    activeTab === "profile" ? "var(--accent-primary)" : "transparent",
+                  color: activeTab === "profile" ? "#ffffff" : "var(--text-secondary)",
+                  fontWeight: activeTab === "profile" ? "700" : "500",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  transition: "var(--theme-transition)",
+                }}
+              >
+                <User size={16} /> My Profile
+              </button>
+            </>
           )}
 
           {isAdmin && (
@@ -253,19 +286,52 @@ export const Navbar = ({
               }}
             >
               <div
+                onClick={() => setActiveTab("profile")}
+                title="Go to My Profile"
                 style={{
-                  background: "var(--bg-surface-elevated)",
+                  background: activeTab === "profile" ? "var(--bg-surface-elevated)" : "var(--bg-surface-elevated)",
                   color: "var(--text-primary)",
-                  padding: "6px 12px",
-                  borderRadius: "20px",
+                  padding: "4px 12px 4px 6px",
+                  borderRadius: "24px",
                   fontSize: "13px",
                   fontWeight: "600",
                   display: "flex",
                   alignItems: "center",
-                  gap: "6px",
-                  border: "1px solid var(--border-color)",
+                  gap: "8px",
+                  border: activeTab === "profile" ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                  cursor: "pointer",
+                  transition: "var(--theme-transition)",
                 }}
               >
+                {user?.avatar_url ? (
+                  <img
+                    src={user.avatar_url.startsWith('/') ? user.avatar_url : `/${user.avatar_url}`}
+                    alt={user?.name || "Avatar"}
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "50%",
+                      background: "var(--accent-gradient)",
+                      color: "#ffffff",
+                      fontSize: "11px",
+                      fontWeight: "700",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    {getInitials(user?.name)}
+                  </div>
+                )}
                 <span>{user?.name}</span>
                 <span
                   style={{

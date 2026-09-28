@@ -67,6 +67,13 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = (updatedFields) => {
+    setUser((prevUser) => {
+      if (!prevUser) return updatedFields;
+      return { ...prevUser, ...updatedFields };
+    });
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -75,6 +82,7 @@ export const AuthProvider = ({ children }) => {
         login,
         register,
         logout,
+        updateUser,
         isAuthenticated: !!user,
         isAdmin: user?.role === 'admin',
       }}

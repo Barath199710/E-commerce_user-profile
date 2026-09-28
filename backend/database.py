@@ -72,6 +72,14 @@ def init_db():
         conn.commit()
         print("[DB Migration] Added missing 'user_id' column to orders table.")
     
+    # Ensure avatar_url column exists in existing users table
+    cursor.execute("PRAGMA table_info(users)")
+    user_columns = [row['name'] for row in cursor.fetchall()]
+    if 'avatar_url' not in user_columns:
+        cursor.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT DEFAULT NULL")
+        conn.commit()
+        print("[DB Migration] Added missing 'avatar_url' column to users table.")
+    
     # Seed Initial Users if Empty
     cursor.execute("SELECT COUNT(*) as count FROM users")
     u_count = cursor.fetchone()['count']

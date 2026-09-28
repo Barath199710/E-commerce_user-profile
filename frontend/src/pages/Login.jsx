@@ -84,7 +84,13 @@ export const Login = ({ onSuccessRedirect }) => {
           >
             Login to your account
           </h2>
-          <p style={{ color: "var(--text-secondary)", fontSize: "14px", margin: 0 }}>
+          <p
+            style={{
+              color: "var(--text-secondary)",
+              fontSize: "14px",
+              margin: 0,
+            }}
+          >
             Enter your credentials to continue
           </p>
         </div>
@@ -209,7 +215,7 @@ export const Login = ({ onSuccessRedirect }) => {
               transition: "all 0.2s ease",
             }}
           >
-            {submitting ? "Authenticating..." : "Sign In with JWT"}
+            {submitting ? "Authenticating..." : "Sign In"}
           </button>
         </form>
 

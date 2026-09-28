@@ -96,7 +96,8 @@ def register():
             'id': user_id,
             'name': name,
             'email': email,
-            'role': role
+            'role': role,
+            'avatar_url': None
         }
     }), 201
 
@@ -139,7 +140,9 @@ def login():
             'id': user['id'],
             'name': user['name'],
             'email': user['email'],
-            'role': user['role']
+            'role': user['role'],
+            'avatar_url': user.get('avatar_url') if user.get('avatar_url') else None,
+            'created_at': user.get('created_at')
         }
     }), 200
 
@@ -175,14 +178,225 @@ def get_me():
     user_id = get_jwt_identity()
     conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, name, email, role, created_at FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT id, name, email, role, avatar_url, created_at FROM users WHERE id = ?", (user_id,))
     user_row = cursor.fetchone()
     conn.close()
 
     if not user_row:
         return jsonify({"error": "User profile not found"}), 404
 
-    return jsonify(dict(user_row)), 200
+    user_data = dict(user_row)
+    if not user_data.get('avatar_url'):
+        user_data['avatar_url'] = None
+
+    return jsonify(user_data), 200
+
+
+@app.route('/api/me', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    user_id = get_jwt_identity()
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    email = data.get('email', '').strip().lower()
+    avatar_url = data.get('avatar_url', None)
+
+    if not name or not email:
+        return jsonify({"error": "Name and email required"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    # Check if email is used by another user
+    cursor.execute("SELECT id FROM users WHERE LOWER(email) = ? AND id != ?", (email, user_id))
+    existing = cursor.fetchone()
+    if existing:
+        conn.close()
+        return jsonify({"error": "Email already in use"}), 409
+
+    if avatar_url is not None:
+        cursor.execute(
+            "UPDATE users SET name = ?, email = ?, avatar_url = ? WHERE id = ?",
+            (name, email, avatar_url, user_id)
+        )
+    else:
+        cursor.execute(
+            "UPDATE users SET name = ?, email = ? WHERE id = ?",
+            (name, email, user_id)
+        )
+    conn.commit()
+
+    cursor.execute("SELECT id, name, email, role, avatar_url, created_at FROM users WHERE id = ?", (user_id,))
+    updated_user = dict(cursor.fetchone())
+    conn.close()
+
+    if not updated_user.get('avatar_url'):
+        updated_user['avatar_url'] = None
+
+    return jsonify({
+        "message": "Profile updated",
+        "user": updated_user
+    }), 200
+
+
+@app.route('/api/me/password', methods=['PUT'])
+@jwt_required()
+def change_password():
+    user_id = get_jwt_identity()
+    data = request.get_json() or {}
+    current = data.get('current_password') or data.get('current', '')
+    new_pass = data.get('new_password') or data.get('new_pass', '')
+    confirm = data.get('confirm_password') or data.get('confirm', '')
+
+    if new_pass != confirm:
+        return jsonify({"error": "Passwords do not match"}), 400
+
+    if len(new_pass) < 6:
+        return jsonify({"error": "Min 6 characters"}), 400
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    user_row = cursor.fetchone()
+
+    if not user_row:
+        conn.close()
+        return jsonify({"error": "User profile not found"}), 404
+
+    user = dict(user_row)
+    if not check_password_hash(user['password_hash'], current):
+        conn.close()
+        return jsonify({"error": "Current password incorrect"}), 401
+
+    hashed = generate_password_hash(new_pass)
+    cursor.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hashed, user_id))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Password changed"}), 200
+
+
+@app.route('/api/me/avatar', methods=['PUT'])
+@jwt_required()
+def update_avatar():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files['image']
+
+    if file.filename == '':
+        return jsonify({"error": "No file selected"}), 400
+
+    if not allowed_file(file.filename):
+        return jsonify({"error": "Invalid file type. Formats allowed: PNG, JPG, JPEG, WEBP"}), 400
+
+    file.seek(0, os.SEEK_END)
+    size = file.tell()
+    file.seek(0)
+    if size > MAX_FILE_SIZE:
+        return jsonify({"error": "File size exceeds 2 MB"}), 400
+
+    ext = file.filename.rsplit('.', 1)[-1].lower()
+    unique_name = f"{uuid.uuid4().hex}.{ext}"
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_name)
+    file.save(filepath)
+
+    avatar_url = f"/static/uploads/{unique_name}"
+    user_id = get_jwt_identity()
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET avatar_url = ? WHERE id = ?", (avatar_url, user_id))
+    conn.commit()
+
+    cursor.execute("SELECT id, name, email, role, avatar_url, created_at FROM users WHERE id = ?", (user_id,))
+    updated_user = dict(cursor.fetchone())
+    conn.close()
+
+    if not updated_user.get('avatar_url'):
+        updated_user['avatar_url'] = None
+
+    return jsonify({
+        "message": "Profile picture updated successfully!",
+        "avatar_url": avatar_url,
+        "user": updated_user
+    }), 200
+
+
+@app.route('/api/me/avatar', methods=['DELETE'])
+@jwt_required()
+def delete_avatar():
+    user_id = get_jwt_identity()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT avatar_url FROM users WHERE id = ?", (user_id,))
+    row = cursor.fetchone()
+    if row and row['avatar_url']:
+        old_avatar = row['avatar_url']
+        if old_avatar.startswith('/static/uploads/'):
+            filename = old_avatar.replace('/static/uploads/', '')
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+            if os.path.exists(filepath):
+                try:
+                    os.remove(filepath)
+                except Exception as e:
+                    print(f"Failed to remove avatar file {filepath}: {e}")
+
+    cursor.execute("UPDATE users SET avatar_url = NULL WHERE id = ?", (user_id,))
+    conn.commit()
+
+    cursor.execute("SELECT id, name, email, role, avatar_url, created_at FROM users WHERE id = ?", (user_id,))
+    updated_user = dict(cursor.fetchone())
+    conn.close()
+
+    if not updated_user.get('avatar_url'):
+        updated_user['avatar_url'] = None
+
+    return jsonify({
+        "message": "Profile picture removed. Initials avatar restored!",
+        "avatar_url": None,
+        "user": updated_user
+    }), 200
+
+
+@app.route('/api/me/stats', methods=['GET'])
+@jwt_required()
+def get_user_stats():
+    user_id = get_jwt_identity()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT created_at FROM users WHERE id = ?", (user_id,))
+    user_row = cursor.fetchone()
+    if not user_row:
+        conn.close()
+        return jsonify({"error": "User not found"}), 404
+
+    cursor.execute("SELECT COUNT(*) as total_orders, COALESCE(SUM(total_amount), 0) as total_spent FROM orders WHERE user_id = ?", (user_id,))
+    stats_row = cursor.fetchone()
+    conn.close()
+
+    return jsonify({
+        "created_at": user_row['created_at'],
+        "total_orders": stats_row['total_orders'],
+        "total_spent": round(stats_row['total_spent'], 2)
+    }), 200
+
+
+@app.route('/api/me', methods=['DELETE'])
+@jwt_required()
+def delete_account():
+    user_id = get_jwt_identity()
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("DELETE FROM orders WHERE user_id = ?", (user_id,))
+    cursor.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+
+    return jsonify({"message": "Account deleted successfully"}), 200
 
 
 @app.route('/api/logout', methods=['POST'])

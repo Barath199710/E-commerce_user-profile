@@ -7,6 +7,7 @@ import { Home } from './pages/Home';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { MyOrders } from './pages/MyOrders';
+import { ProfilePage } from './pages/ProfilePage';
 import { AdminOrders } from './pages/admin/AdminOrders';
 import { ProductForm } from './components/ProductForm';
 import { ProductDetail } from './components/ProductDetail';
@@ -81,6 +82,11 @@ const MainApp = () => {
         return <Login onSuccessRedirect={(targetTab) => setActiveTab(targetTab)} />;
       case 'register':
         return <Register onSuccessRedirect={(targetTab) => setActiveTab(targetTab)} />;
+      case 'profile':
+        if (!isAuthenticated) {
+          return <Login onSuccessRedirect={() => setActiveTab('profile')} />;
+        }
+        return <ProfilePage />;
       case 'my_orders':
         if (!isAuthenticated) {
           return <Login onSuccessRedirect={() => setActiveTab('my_orders')} />;
